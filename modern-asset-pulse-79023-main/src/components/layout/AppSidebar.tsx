@@ -14,6 +14,7 @@ import {
   Bell,
   Settings,
   LogOut,
+  UserCog,
 } from "lucide-react";
 import {
   Sidebar,
@@ -42,6 +43,7 @@ const navigation = [
   { title: "Depreciation", url: "/depreciation", icon: TrendingDown, roles: ["admin", "finance", "asset_manager"] },
   { title: "Disposal", url: "/disposal", icon: Trash2, roles: ["admin", "disposal_officer", "asset_manager", "finance"] },
   { title: "Requests", url: "/requests", icon: FileText, roles: ["admin", "asset_manager", "employee", "viewer"] },
+  { title: "Users", url: "/users", icon: UserCog, roles: ["admin"] },
 ];
 
 export function AppSidebar() {

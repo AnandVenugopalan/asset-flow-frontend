@@ -1,4 +1,6 @@
 import { useState } from "react";
+// You may want to use axios for easier API calls
+// import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,28 +14,57 @@ export default function Login() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
 
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [signupName, setSignupName] = useState("");
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
+  const [signupOrg, setSignupOrg] = useState("");
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    // Simulate login
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const res = await fetch("/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: loginEmail, password: loginPassword })
+      });
+      if (!res.ok) throw new Error("Login failed");
+      const data = await res.json();
+      // Store JWT (localStorage or cookie)
+      localStorage.setItem("token", data.token);
       toast.success("Login successful!");
       navigate("/");
-    }, 1000);
+    } catch (err) {
+      toast.error("Login failed. Please check your credentials.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    // Simulate signup
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const res = await fetch("/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: signupName,
+          email: signupEmail,
+          password: signupPassword,
+          organization: signupOrg
+        })
+      });
+      if (!res.ok) throw new Error("Signup failed");
       toast.success("Account created successfully!");
       navigate("/");
-    }, 1000);
+    } catch (err) {
+      toast.error("Signup failed. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -111,6 +142,8 @@ export default function Login() {
                         placeholder="rajesh@company.com"
                         className="pl-9"
                         required
+                        value={loginEmail}
+                        onChange={e => setLoginEmail(e.target.value)}
                       />
                     </div>
                   </div>
@@ -124,6 +157,8 @@ export default function Login() {
                         placeholder="Enter your password"
                         className="pl-9"
                         required
+                        value={loginPassword}
+                        onChange={e => setLoginPassword(e.target.value)}
                       />
                     </div>
                   </div>
@@ -154,6 +189,8 @@ export default function Login() {
                         placeholder="Rajesh Agarwal"
                         className="pl-9"
                         required
+                        value={signupName}
+                        onChange={e => setSignupName(e.target.value)}
                       />
                     </div>
                   </div>
@@ -167,6 +204,8 @@ export default function Login() {
                         placeholder="rajesh@company.com"
                         className="pl-9"
                         required
+                        value={signupEmail}
+                        onChange={e => setSignupEmail(e.target.value)}
                       />
                     </div>
                   </div>
@@ -180,6 +219,8 @@ export default function Login() {
                         placeholder="Create a strong password"
                         className="pl-9"
                         required
+                        value={signupPassword}
+                        onChange={e => setSignupPassword(e.target.value)}
                       />
                     </div>
                   </div>
@@ -193,6 +234,8 @@ export default function Login() {
                         placeholder="Company Name"
                         className="pl-9"
                         required
+                        value={signupOrg}
+                        onChange={e => setSignupOrg(e.target.value)}
                       />
                     </div>
                   </div>

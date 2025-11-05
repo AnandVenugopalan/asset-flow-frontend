@@ -1,8 +1,8 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -12,74 +12,141 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Trash2, Plus, CheckCircle, Clock, XCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
-const disposalRequests = [
-  {
-    id: "DSP-001",
-    assetId: "AST-045",
-    assetName: "HP ProBook 450",
-    reason: "End of life",
-    requestedBy: "Meera Iyer",
-    requestDate: "2024-01-08",
-    status: "Pending Approval",
-    estimatedValue: "₹8,000",
-    salvageValue: "₹5,000",
-    disposalMethod: "Auction",
-  },
-  {
-    id: "DSP-002",
-    assetId: "AST-078",
-    assetName: "Office Chair",
-    reason: "Damaged",
-    requestedBy: "Admin Team",
-    requestDate: "2024-01-05",
-    status: "Approved",
-    estimatedValue: "₹3,500",
-    salvageValue: "₹500",
-    disposalMethod: "Scrap",
-  },
-  {
-    id: "DSP-003",
-    assetId: "AST-023",
-    assetName: "Maruti Swift",
-    reason: "High maintenance cost",
-    requestedBy: "Vikram Singh",
-    requestDate: "2023-12-28",
-    status: "Completed",
-    estimatedValue: "₹2,80,000",
-    salvageValue: "₹2,65,000",
-    disposalMethod: "Sale",
-  },
-];
+interface DisposalRequest {
+  id: string;
+  assetId: string;
+  assetName: string;
+  reason: string;
+  requestedBy: string;
+  requestDate: string;
+  status: string;
+  estimatedValue: number;
+  salvageValue: number;
+  disposalMethod: string;
+}
+
+interface DisposalStats {
+  totalDisposals: number;
+  pending: number;
+  completed: number;
+  rejected: number;
+}
 
 export default function Disposal() {
   const navigate = useNavigate();
-  
-  const stats = [
+  const { toast } = useToast();
+  const [disposalRequests, setDisposalRequests] = useState<DisposalRequest[]>([]);
+  const [stats, setStats] = useState<DisposalStats>({
+    totalDisposals: 0,
+    pending: 0,
+    completed: 0,
+    rejected: 0,
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchDisposalRequests();
+  }, []);
+
+  const fetchDisposalRequests = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:3000/disposal/requests', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const requests = await response.json();
+        setDisposalRequests(requests);
+
+        // Calculate stats from the data
+        const totalDisposals = requests.length;
+        const pending = requests.filter((r: DisposalRequest) => r.status === 'Pending Approval').length;
+        const completed = requests.filter((r: DisposalRequest) => r.status === 'Completed').length;
+        const rejected = requests.filter((r: DisposalRequest) => r.status === 'Rejected').length;
+
+        setStats({
+          totalDisposals,
+          pending,
+          completed,
+          rejected,
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch disposal requests",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleApproveRequest = async (requestId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:3000/disposal/requests/${requestId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: 'Approved' }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Disposal request approved successfully",
+        });
+        fetchDisposalRequests(); // Refresh the data
+      } else {
+        const errorData = await response.json();
+        toast({
+          title: "Error",
+          description: errorData.message || "Failed to approve request",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Network error occurred",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const statsCards = [
     {
       title: "Total Disposals",
-      value: "68",
+      value: stats.totalDisposals.toString(),
       icon: Trash2,
       color: "text-primary",
       bgColor: "bg-primary/10",
     },
     {
       title: "Pending",
-      value: "12",
+      value: stats.pending.toString(),
       icon: Clock,
       color: "text-warning",
       bgColor: "bg-warning/10",
     },
     {
       title: "Completed",
-      value: "52",
+      value: stats.completed.toString(),
       icon: CheckCircle,
       color: "text-success",
       bgColor: "bg-success/10",
     },
     {
       title: "Rejected",
-      value: "4",
+      value: stats.rejected.toString(),
       icon: XCircle,
       color: "text-destructive",
       bgColor: "bg-destructive/10",
@@ -101,6 +168,27 @@ export default function Disposal() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Disposal & Retirement</h1>
+            <p className="text-muted-foreground mt-1">
+              Manage asset disposal requests and retirement workflow
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading disposal requests...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -117,7 +205,7 @@ export default function Disposal() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
+        {statsCards.map((stat) => (
           <Card key={stat.title} className="transition-smooth hover:shadow-md">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -170,36 +258,34 @@ export default function Disposal() {
                       </TableCell>
                       <TableCell>{request.reason}</TableCell>
                       <TableCell>{request.requestedBy}</TableCell>
-                      <TableCell>{request.requestDate}</TableCell>
+                      <TableCell>{new Date(request.requestDate).toLocaleDateString()}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={getStatusColor(request.status)}>
                           {request.status}
                         </Badge>
                       </TableCell>
                       <TableCell className="font-medium">
-                        {request.estimatedValue}
+                        ₹{request.estimatedValue.toLocaleString()}
                       </TableCell>
                       <TableCell className="font-medium text-success">
-                        {request.salvageValue}
+                        ₹{request.salvageValue.toLocaleString()}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">{request.disposalMethod}</Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-2">
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             onClick={() => navigate(`/disposal/${request.id}`)}
                           >
                             View
                           </Button>
                           {request.status === "Pending Approval" && (
-                            <Button 
+                            <Button
                               size="sm"
-                              onClick={() => {
-                                toast.success("Disposal request approved successfully!");
-                              }}
+                              onClick={() => handleApproveRequest(request.id)}
                             >
                               Approve
                             </Button>

@@ -28,6 +28,7 @@ import TransferAsset from "./pages/TransferAsset";
 import AddProcurement from "./pages/AddProcurement";
 import NotFound from "./pages/NotFound";
 import Commissioning from "./pages/Commissioning";
+import Users from "./pages/Users";
 
 const queryClient = new QueryClient();
 
@@ -89,6 +90,7 @@ const App = () => {
                 <Route path="/disposal" element={<AppLayout><Disposal /></AppLayout>} />
                 <Route path="/disposal/new" element={<AppLayout><NewDisposalRequest /></AppLayout>} />
                 <Route path="/requests" element={<AppLayout><Requests /></AppLayout>} />
+                <Route path="/users" element={<AppLayout><Users /></AppLayout>} />
                 <Route path="/notifications" element={<AppLayout><div className="flex h-96 items-center justify-center"><p className="text-xl text-muted-foreground">Notifications Module - Coming Soon</p></div></AppLayout>} />
                 <Route path="/settings" element={<AppLayout><div className="flex h-96 items-center justify-center"><p className="text-xl text-muted-foreground">Settings Module - Coming Soon</p></div></AppLayout>} />
                 <Route path="/commissioning" element={<AppLayout><Commissioning /></AppLayout>} />

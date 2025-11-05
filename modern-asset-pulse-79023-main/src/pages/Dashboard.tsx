@@ -1,93 +1,205 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, TrendingUp, Wrench, Archive, DollarSign, Users, AlertTriangle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
-import { notifications } from "@/lib/mockData";
+import { useToast } from "@/hooks/use-toast";
 
-const stats = [
-  {
-    title: "Total Assets",
-    value: "1,247",
-    change: "+12%",
-    icon: Package,
-    color: "text-primary",
-    bgColor: "bg-primary/10",
-  },
-  {
-    title: "Active Assets",
-    value: "1,185",
-    change: "+8%",
-    icon: TrendingUp,
-    color: "text-success",
-    bgColor: "bg-success/10",
-  },
-  {
-    title: "Under Maintenance",
-    value: "42",
-    change: "-5%",
-    icon: Wrench,
-    color: "text-warning",
-    bgColor: "bg-warning/10",
-  },
-  {
-    title: "Retired Assets",
-    value: "20",
-    change: "+2",
-    icon: Archive,
-    color: "text-muted-foreground",
-    bgColor: "bg-muted",
-  },
-];
+interface DashboardStats {
+  totalAssets: number;
+  activeAssets: number;
+  underMaintenance: number;
+  retiredAssets: number;
+  totalValue: number;
+  depreciationThisMonth: number;
+}
 
-const categoryData = [
-  { name: "IT Equipment", value: 542, color: "hsl(var(--primary))" },
-  { name: "Furniture", value: 289, color: "hsl(var(--secondary))" },
-  { name: "Vehicles", value: 156, color: "hsl(var(--accent))" },
-  { name: "Property", value: 89, color: "hsl(var(--success))" },
-  { name: "Others", value: 171, color: "hsl(var(--muted-foreground))" },
-];
+interface CategoryData {
+  name: string;
+  value: number;
+  color: string;
+}
 
-const depreciationData = [
-  { month: "Jan", value: 285 },
-  { month: "Feb", value: 312 },
-  { month: "Mar", value: 298 },
-  { month: "Apr", value: 335 },
-  { month: "May", value: 321 },
-  { month: "Jun", value: 358 },
-];
+interface DepreciationData {
+  month: string;
+  value: number;
+}
 
-const locationData = [
-  { location: "Mumbai", count: 342 },
-  { location: "Delhi", count: 289 },
-  { location: "Bangalore", count: 256 },
-  { location: "Pune", count: 178 },
-  { location: "Chennai", count: 182 },
-];
+interface LocationData {
+  location: string;
+  count: number;
+}
+
+interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  time: string;
+  read: boolean;
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats>({
+    totalAssets: 0,
+    activeAssets: 0,
+    underMaintenance: 0,
+    retiredAssets: 0,
+    totalValue: 0,
+    depreciationThisMonth: 0,
+  });
+  const [categoryData, setCategoryData] = useState<CategoryData[]>([]);
+  const [depreciationData, setDepreciationData] = useState<DepreciationData[]>([]);
+  const [locationData, setLocationData] = useState<LocationData[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'Authorization': `Bearer ${token}` };
+
+      // Fetch dashboard stats
+      const statsResponse = await fetch('http://localhost:3000/reports/dashboard', { headers });
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        setStats(statsData);
+      }
+
+      // Fetch category distribution
+      const categoryResponse = await fetch('http://localhost:3000/reports/assets-by-category', { headers });
+      if (categoryResponse.ok) {
+        const categoryRawData = await categoryResponse.json();
+        // Transform data to include colors
+        const colors = [
+          "hsl(var(--primary))",
+          "hsl(var(--secondary))",
+          "hsl(var(--accent))",
+          "hsl(var(--success))",
+          "hsl(var(--muted-foreground))"
+        ];
+        const categoryDataWithColors = categoryRawData.map((item: { category: string; count: number }, index: number) => ({
+          ...item,
+          color: colors[index % colors.length]
+        }));
+        setCategoryData(categoryDataWithColors);
+      }
+
+      // Fetch depreciation trend
+      const depreciationResponse = await fetch('http://localhost:3000/reports/depreciation-trend', { headers });
+      if (depreciationResponse.ok) {
+        const depreciationRawData = await depreciationResponse.json();
+        setDepreciationData(depreciationRawData);
+      }
+
+      // Fetch location data
+      const locationResponse = await fetch('http://localhost:3000/reports/assets-by-location', { headers });
+      if (locationResponse.ok) {
+        const locationRawData = await locationResponse.json();
+        setLocationData(locationRawData);
+      }
+
+      // Fetch recent notifications
+      const notificationsResponse = await fetch('http://localhost:3000/notifications?limit=4', { headers });
+      if (notificationsResponse.ok) {
+        const notificationsData = await notificationsResponse.json();
+        setNotifications(notificationsData);
+      }
+
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load dashboard data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const statsCards = [
+    {
+      title: "Total Assets",
+      value: stats.totalAssets.toLocaleString(),
+      change: "+12%", // This could come from API
+      icon: Package,
+      color: "text-primary",
+      bgColor: "bg-primary/10",
+    },
+    {
+      title: "Active Assets",
+      value: stats.activeAssets.toLocaleString(),
+      change: "+8%", // This could come from API
+      icon: TrendingUp,
+      color: "text-success",
+      bgColor: "bg-success/10",
+    },
+    {
+      title: "Under Maintenance",
+      value: stats.underMaintenance.toString(),
+      change: "-5%", // This could come from API
+      icon: Wrench,
+      color: "text-warning",
+      bgColor: "bg-warning/10",
+    },
+    {
+      title: "Retired Assets",
+      value: stats.retiredAssets.toString(),
+      change: "+2", // This could come from API
+      icon: Archive,
+      color: "text-muted-foreground",
+      bgColor: "bg-muted",
+    },
+  ];
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Dashboard</h1>
+            <p className="text-muted-foreground mt-1">Loading dashboard data...</p>
+          </div>
+        </div>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading dashboard...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Welcome back, Rajesh! Here's your asset overview.</p>
+          <p className="text-muted-foreground mt-1">Welcome back! Here's your asset overview.</p>
         </div>
         <div className="flex gap-2">
-          <Button 
+          <Button
             variant="outline"
             onClick={() => {
-              toast.success("Opening reports...");
+              toast({
+                title: "Reports",
+                description: "Opening comprehensive reports...",
+              });
             }}
           >
             <DollarSign className="mr-2 h-4 w-4" />
             View Reports
           </Button>
-          <Button 
+          <Button
             className="gradient-primary"
             onClick={() => navigate("/assets/add")}
           >
@@ -99,7 +211,7 @@ export default function Dashboard() {
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
+        {statsCards.map((stat) => (
           <Card key={stat.title} className="transition-smooth hover:shadow-md">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -227,8 +339,8 @@ export default function Dashboard() {
                 </div>
               </div>
             ))}
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="w-full"
               onClick={() => navigate("/notifications")}
             >
@@ -246,23 +358,29 @@ export default function Dashboard() {
             <p className="text-sm text-muted-foreground mt-1">Manage your assets efficiently</p>
           </div>
           <div className="flex gap-2">
-            <Button 
+            <Button
               variant="secondary"
               onClick={() => {
-                toast.success("Starting asset audit...");
+                toast({
+                  title: "Audit",
+                  description: "Starting asset audit...",
+                });
               }}
             >
               Start Audit
             </Button>
-            <Button 
+            <Button
               variant="secondary"
               onClick={() => navigate("/requests/new")}
             >
               Raise Request
             </Button>
-            <Button 
+            <Button
               onClick={() => {
-                toast.success("Generating comprehensive report...");
+                toast({
+                  title: "Report",
+                  description: "Generating comprehensive report...",
+                });
               }}
             >
               Generate Report

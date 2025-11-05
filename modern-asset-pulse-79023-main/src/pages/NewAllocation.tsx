@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,23 +13,127 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowLeft, Save } from "lucide-react";
-import { toast } from "sonner";
-import { assets, employees, cities } from "@/lib/mockData";
+import { useToast } from "@/hooks/use-toast";
+
+interface AllocationForm {
+  assetId: string;
+  assignedTo: string;
+  department: string;
+  location: string;
+  purpose: string;
+  allocationType: "permanent" | "temporary";
+  startDate?: string;
+  expectedReturn?: string;
+  notes: string;
+}
+
+interface Asset {
+  id: string;
+  name: string;
+  serialNumber: string;
+  purchaseCost: number;
+  status: string;
+  location: string;
+  category: string;
+}
 
 export default function NewAllocation() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [allocationType, setAllocationType] = useState<"permanent" | "temporary">("permanent");
+  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  const [availableAssets, setAvailableAssets] = useState<Asset[]>([]);
+  const [formData, setFormData] = useState<AllocationForm>({
+    assetId: '',
+    assignedTo: '',
+    department: '',
+    location: '',
+    purpose: '',
+    allocationType: 'permanent',
+    notes: '',
+  });
+
+  useEffect(() => {
+    fetchAvailableAssets();
+  }, []);
+
+  const fetchAvailableAssets = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:3000/assets?status=Active&assignedTo=null', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const assets = await response.json();
+        setAvailableAssets(assets);
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch available assets",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAssetSelect = (assetId: string) => {
+    const asset = availableAssets.find(a => a.id === assetId);
+    setSelectedAsset(asset || null);
+    setFormData(prev => ({ ...prev, assetId }));
+  };
+
+  const handleInputChange = (field: keyof AllocationForm, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    setTimeout(() => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:3000/allocation/assignments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ...formData,
+          allocationType,
+          assignDate: new Date().toISOString(),
+          assignedBy: 'Current User', // This should come from user context
+          status: 'Active',
+        }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Asset allocated successfully",
+        });
+        navigate("/allocation");
+      } else {
+        const errorData = await response.json();
+        toast({
+          title: "Error",
+          description: errorData.message || "Failed to allocate asset",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Network error occurred",
+        variant: "destructive",
+      });
+    } finally {
       setIsSubmitting(false);
-      toast.success("Asset allocated successfully!");
-      navigate("/allocation");
-    }, 1000);
+    }
   };
 
   return (
@@ -53,39 +157,39 @@ export default function NewAllocation() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="asset">Select Asset *</Label>
-                <Select required>
+                <Select value={formData.assetId} onValueChange={handleAssetSelect} required>
                   <SelectTrigger>
                     <SelectValue placeholder="Choose asset to allocate" />
                   </SelectTrigger>
                   <SelectContent>
-                    {assets
-                      .filter((a) => a.status === "Active" && !a.assignedTo.includes("Team"))
-                      .map((asset) => (
-                        <SelectItem key={asset.id} value={asset.id}>
-                          {asset.name} ({asset.id}) - {asset.location}
-                        </SelectItem>
-                      ))}
+                    {availableAssets.map((asset) => (
+                      <SelectItem key={asset.id} value={asset.id}>
+                        {asset.name} ({asset.id}) - {asset.location}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
-                <p className="text-sm font-medium">Asset Information</p>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Type:</span> Laptop
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Serial No:</span> DL5520-2023-001
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Value:</span> ₹65,000
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Status:</span> Available
+              {selectedAsset && (
+                <div className="rounded-lg border bg-muted/50 p-4 space-y-2">
+                  <p className="text-sm font-medium">Asset Information</p>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Type:</span> {selectedAsset.category}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Serial No:</span> {selectedAsset.serialNumber}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Value:</span> ₹{selectedAsset.purchaseCost.toLocaleString()}
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Status:</span> {selectedAsset.status}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
 
@@ -98,7 +202,7 @@ export default function NewAllocation() {
                 <Label>Allocation Duration *</Label>
                 <Select
                   value={allocationType}
-                  onValueChange={(v) => setAllocationType(v as "permanent" | "temporary")}
+                  onValueChange={(v: "permanent" | "temporary") => setAllocationType(v)}
                   required
                 >
                   <SelectTrigger>
@@ -115,11 +219,23 @@ export default function NewAllocation() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="startDate">Start Date *</Label>
-                    <Input id="startDate" type="date" required />
+                    <Input
+                      id="startDate"
+                      type="date"
+                      value={formData.startDate || ''}
+                      onChange={(e) => handleInputChange('startDate', e.target.value)}
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="expectedReturn">Expected Return Date *</Label>
-                    <Input id="expectedReturn" type="date" required />
+                    <Input
+                      id="expectedReturn"
+                      type="date"
+                      value={formData.expectedReturn || ''}
+                      onChange={(e) => handleInputChange('expectedReturn', e.target.value)}
+                      required
+                    />
                   </div>
                 </div>
               )}
@@ -133,54 +249,46 @@ export default function NewAllocation() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="assignTo">Assign To *</Label>
-                <Select required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select employee or team" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="team-engineering">Engineering Team</SelectItem>
-                    <SelectItem value="team-design">Design Team</SelectItem>
-                    <SelectItem value="team-it">IT Department</SelectItem>
-                    {employees.map((employee) => (
-                      <SelectItem key={employee} value={employee.toLowerCase()}>
-                        {employee}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input
+                  id="assignTo"
+                  placeholder="Employee name or team"
+                  value={formData.assignedTo}
+                  onChange={(e) => handleInputChange('assignedTo', e.target.value)}
+                  required
+                />
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="department">Department *</Label>
-                  <Select required>
+                  <Select value={formData.department} onValueChange={(value) => handleInputChange('department', value)} required>
                     <SelectTrigger>
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="engineering">Engineering</SelectItem>
-                      <SelectItem value="design">Design</SelectItem>
-                      <SelectItem value="sales">Sales</SelectItem>
-                      <SelectItem value="marketing">Marketing</SelectItem>
-                      <SelectItem value="hr">Human Resources</SelectItem>
-                      <SelectItem value="finance">Finance</SelectItem>
-                      <SelectItem value="it">IT</SelectItem>
-                      <SelectItem value="operations">Operations</SelectItem>
+                      <SelectItem value="Engineering">Engineering</SelectItem>
+                      <SelectItem value="Design">Design</SelectItem>
+                      <SelectItem value="Sales">Sales</SelectItem>
+                      <SelectItem value="Marketing">Marketing</SelectItem>
+                      <SelectItem value="Human Resources">Human Resources</SelectItem>
+                      <SelectItem value="Finance">Finance</SelectItem>
+                      <SelectItem value="IT">IT</SelectItem>
+                      <SelectItem value="Operations">Operations</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="location">Location *</Label>
-                  <Select required>
+                  <Select value={formData.location} onValueChange={(value) => handleInputChange('location', value)} required>
                     <SelectTrigger>
                       <SelectValue placeholder="Select location" />
                     </SelectTrigger>
                     <SelectContent>
-                      {cities.map((city) => (
-                        <SelectItem key={city} value={city.toLowerCase()}>
-                          {city} Office
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="Mumbai">Mumbai Office</SelectItem>
+                      <SelectItem value="Delhi">Delhi Office</SelectItem>
+                      <SelectItem value="Bangalore">Bangalore Office</SelectItem>
+                      <SelectItem value="Pune">Pune Office</SelectItem>
+                      <SelectItem value="Hyderabad">Hyderabad Office</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -192,6 +300,8 @@ export default function NewAllocation() {
                   id="purpose"
                   placeholder="Describe the purpose or project for which the asset is being allocated..."
                   rows={3}
+                  value={formData.purpose}
+                  onChange={(e) => handleInputChange('purpose', e.target.value)}
                   required
                 />
               </div>
@@ -231,6 +341,8 @@ export default function NewAllocation() {
                   id="notes"
                   placeholder="Any special instructions or requirements..."
                   rows={3}
+                  value={formData.notes}
+                  onChange={(e) => handleInputChange('notes', e.target.value)}
                 />
               </div>
             </CardContent>

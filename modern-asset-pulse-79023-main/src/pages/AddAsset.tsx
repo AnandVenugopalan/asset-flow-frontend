@@ -20,15 +20,97 @@ export default function AddAsset() {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Form state
+  const [assetName, setAssetName] = useState("");
+  const [assetType, setAssetType] = useState("");
+  const [category, setCategory] = useState("");
+  const [model, setModel] = useState("");
+  const [serialNumber, setSerialNumber] = useState("");
+  const [description, setDescription] = useState("");
+  const [purchaseDate, setPurchaseDate] = useState("");
+  const [purchaseCost, setPurchaseCost] = useState("");
+  const [vendor, setVendor] = useState("");
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [warrantyPeriod, setWarrantyPeriod] = useState("");
+  const [warrantyExpiry, setWarrantyExpiry] = useState("");
+  const [location, setLocation] = useState("");
+  const [department, setDepartment] = useState("");
+  const [assignedTo, setAssignedTo] = useState("");
+  // File uploads
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const [warrantyFile, setWarrantyFile] = useState<File | null>(null);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      // Upload files first if present
+      let invoiceFileUrl = "";
+      let warrantyFileUrl = "";
+      const token = localStorage.getItem("token");
+      if (invoiceFile) {
+        const formData = new FormData();
+        formData.append("file", invoiceFile);
+        const res = await fetch("http://localhost:3000/files/upload", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData
+        });
+        if (res.ok) {
+          const data = await res.json();
+          invoiceFileUrl = data.url || data.path;
+        }
+      }
+      if (warrantyFile) {
+        const formData = new FormData();
+        formData.append("file", warrantyFile);
+        const res = await fetch("http://localhost:3000/files/upload", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData
+        });
+        if (res.ok) {
+          const data = await res.json();
+          warrantyFileUrl = data.url || data.path;
+        }
+      }
+      // Prepare asset data
+      const assetData = {
+        name: assetName,
+        type: assetType,
+        category,
+        model,
+        serialNumber,
+        description,
+        purchaseDate,
+        purchaseCost: Number(purchaseCost),
+        vendor,
+        invoiceNumber,
+        warrantyPeriod: Number(warrantyPeriod),
+        warrantyExpiry,
+        location,
+        department,
+        assignedTo,
+        invoiceFile: invoiceFileUrl,
+        warrantyFile: warrantyFileUrl
+      };
+      // Create asset
+      const res = await fetch("http://localhost:3000/assets", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(assetData)
+      });
+      if (!res.ok) throw new Error("Failed to add asset");
       toast.success("Asset added successfully!");
       navigate("/assets");
-    }, 1000);
+    } catch (err) {
+      toast.error("Failed to add asset. Please check your data.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -54,11 +136,11 @@ export default function AddAsset() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="assetName">Asset Name *</Label>
-                    <Input id="assetName" placeholder="Dell Latitude 5520" required />
+                    <Input id="assetName" placeholder="Dell Latitude 5520" required value={assetName} onChange={e => setAssetName(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="assetType">Asset Type *</Label>
-                    <Select required>
+                    <Select required value={assetType} onValueChange={setAssetType}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select type" />
                       </SelectTrigger>
@@ -79,7 +161,7 @@ export default function AddAsset() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="category">Category *</Label>
-                    <Select required>
+                    <Select required value={category} onValueChange={setCategory}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
@@ -94,13 +176,13 @@ export default function AddAsset() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="model">Model/Make</Label>
-                    <Input id="model" placeholder="Model number or make" />
+                    <Input id="model" placeholder="Model number or make" value={model} onChange={e => setModel(e.target.value)} />
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="serialNumber">Serial Number *</Label>
-                  <Input id="serialNumber" placeholder="DL5520-2024-XXX" required />
+                  <Input id="serialNumber" placeholder="DL5520-2024-XXX" required value={serialNumber} onChange={e => setSerialNumber(e.target.value)} />
                 </div>
 
                 <div className="space-y-2">
@@ -109,6 +191,8 @@ export default function AddAsset() {
                     id="description"
                     placeholder="Additional details about the asset..."
                     rows={3}
+                    value={description}
+                    onChange={e => setDescription(e.target.value)}
                   />
                 </div>
               </CardContent>
@@ -122,33 +206,33 @@ export default function AddAsset() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="purchaseDate">Purchase Date *</Label>
-                    <Input id="purchaseDate" type="date" required />
+                    <Input id="purchaseDate" type="date" required value={purchaseDate} onChange={e => setPurchaseDate(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="purchaseCost">Purchase Cost (₹) *</Label>
-                    <Input id="purchaseCost" type="number" placeholder="75000" required />
+                    <Input id="purchaseCost" type="number" placeholder="75000" required value={purchaseCost} onChange={e => setPurchaseCost(e.target.value)} />
                   </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="vendor">Vendor/Supplier</Label>
-                    <Input id="vendor" placeholder="Dell India" />
+                    <Input id="vendor" placeholder="Dell India" value={vendor} onChange={e => setVendor(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="invoiceNumber">Invoice Number</Label>
-                    <Input id="invoiceNumber" placeholder="INV-2024-XXX" />
+                    <Input id="invoiceNumber" placeholder="INV-2024-XXX" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} />
                   </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="warrantyPeriod">Warranty Period (Months)</Label>
-                    <Input id="warrantyPeriod" type="number" placeholder="36" />
+                    <Input id="warrantyPeriod" type="number" placeholder="36" value={warrantyPeriod} onChange={e => setWarrantyPeriod(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="warrantyExpiry">Warranty Expiry Date</Label>
-                    <Input id="warrantyExpiry" type="date" />
+                    <Input id="warrantyExpiry" type="date" value={warrantyExpiry} onChange={e => setWarrantyExpiry(e.target.value)} />
                   </div>
                 </div>
               </CardContent>
@@ -162,7 +246,7 @@ export default function AddAsset() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="location">Location *</Label>
-                    <Select required>
+                    <Select required value={location} onValueChange={setLocation}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select location" />
                       </SelectTrigger>
@@ -177,7 +261,7 @@ export default function AddAsset() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="department">Department</Label>
-                    <Select>
+                    <Select value={department} onValueChange={setDepartment}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select department" />
                       </SelectTrigger>
@@ -197,7 +281,7 @@ export default function AddAsset() {
 
                 <div className="space-y-2">
                   <Label htmlFor="assignedTo">Assigned To</Label>
-                  <Select>
+                  <Select value={assignedTo} onValueChange={setAssignedTo}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select employee (optional)" />
                     </SelectTrigger>
@@ -228,7 +312,7 @@ export default function AddAsset() {
                         <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
                         <p className="text-xs text-muted-foreground">Click to upload invoice</p>
                       </div>
-                      <input type="file" className="hidden" accept=".pdf,.jpg,.png" />
+                      <input type="file" className="hidden" accept=".pdf,.jpg,.png" onChange={e => setInvoiceFile(e.target.files?.[0] || null)} />
                     </label>
                   </div>
                 </div>
@@ -241,7 +325,7 @@ export default function AddAsset() {
                         <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
                         <p className="text-xs text-muted-foreground">Click to upload warranty</p>
                       </div>
-                      <input type="file" className="hidden" accept=".pdf,.jpg,.png" />
+                      <input type="file" className="hidden" accept=".pdf,.jpg,.png" onChange={e => setWarrantyFile(e.target.files?.[0] || null)} />
                     </label>
                   </div>
                 </div>

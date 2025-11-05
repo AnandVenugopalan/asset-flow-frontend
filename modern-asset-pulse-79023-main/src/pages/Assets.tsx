@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,23 +21,67 @@ import {
 } from "@/components/ui/table";
 import { Search, Filter, Download, Plus, Eye, Edit, Trash2, ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
-import { assets } from "@/lib/mockData";
+// import { assets } from "@/lib/mockData";
+
+interface Asset {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  subcategory: string;
+  status: string;
+  location: string;
+  purchaseDate: string;
+  purchaseCost: number;
+  currentValue: number;
+  assignedTo: string;
+  serialNumber: string;
+  model: string;
+  manufacturer: string;
+  warrantyExpiry: string;
+  depreciationMethod: string;
+  usefulLife: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export default function Assets() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const filteredAssets = assets.filter((asset) => {
-    const matchesSearch =
-      asset.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      asset.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      asset.assignedTo.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || asset.status === statusFilter;
-    const matchesType = typeFilter === "all" || asset.type === typeFilter;
-    return matchesSearch && matchesStatus && matchesType;
-  });
+  const fetchAssets = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams();
+      if (searchQuery) params.append("search", searchQuery);
+      if (statusFilter !== "all") params.append("status", statusFilter);
+      if (typeFilter !== "all") params.append("type", typeFilter);
+      // Add pagination params if needed
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/assets?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to fetch assets");
+      const data = await res.json();
+      setAssets(data.items || data); // Adjust if API returns { items: [...] }
+    } catch (err) {
+      setError((err as Error).message || "Error fetching assets");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch assets on mount and when filters/search change
+  React.useEffect(() => {
+    fetchAssets();
+    // eslint-disable-next-line
+  }, [searchQuery, statusFilter, typeFilter]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -70,7 +114,7 @@ export default function Assets() {
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <CardTitle>All Assets ({filteredAssets.length})</CardTitle>
+            <CardTitle>All Assets ({assets.length})</CardTitle>
             <div className="flex flex-col gap-2 sm:flex-row">
               <div className="relative flex-1 sm:w-64">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -144,7 +188,19 @@ export default function Assets() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredAssets.map((asset) => (
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center">Loading assets...</TableCell>
+                    </TableRow>
+                  ) : error ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center text-destructive">{error}</TableCell>
+                    </TableRow>
+                  ) : assets.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center">No assets found.</TableCell>
+                    </TableRow>
+                  ) : assets.map((asset) => (
                     <TableRow key={asset.id} className="hover:bg-muted/50">
                       <TableCell className="font-medium">{asset.id}</TableCell>
                       <TableCell>
@@ -155,15 +211,8 @@ export default function Assets() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>{asset.type}</TableCell>
-                      <TableCell>
-                        <div>
-                          <div>{asset.assignedTo}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {asset.department}
-                          </div>
-                        </div>
-                      </TableCell>
+                      <TableCell>{asset.category}</TableCell>
+                      <TableCell>{asset.assignedTo}</TableCell>
                       <TableCell>{asset.location}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={getStatusColor(asset.status)}>
@@ -194,9 +243,20 @@ export default function Assets() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                            onClick={() => {
+                            onClick={async () => {
                               if (confirm(`Are you sure you want to delete ${asset.name}?`)) {
-                                toast.success("Asset deleted successfully");
+                                try {
+                                  const token = localStorage.getItem("token");
+                                  const res = await fetch(`/assets/${asset.id}`, {
+                                    method: "DELETE",
+                                    headers: { Authorization: `Bearer ${token}` }
+                                  });
+                                  if (!res.ok) throw new Error("Delete failed");
+                                  toast.success("Asset deleted successfully");
+                                  fetchAssets();
+                                } catch {
+                                  toast.error("Failed to delete asset");
+                                }
                               }
                             }}
                           >

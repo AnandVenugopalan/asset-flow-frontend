@@ -1,9 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Plus, ArrowRightLeft, CheckCircle } from "lucide-react";
+import { Users, Plus, ArrowRightLeft, CheckCircle, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 import {
   Table,
   TableBody,
@@ -12,69 +12,116 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useState, useEffect } from "react";
 
-const allocations = [
-  {
-    id: "ALLOC-001",
-    asset: "Dell Latitude 5520",
-    assetId: "AST-001",
-    assignedTo: "Priya Sharma",
-    assignedBy: "Rajesh Agarwal",
-    department: "Engineering",
-    assignDate: "2023-01-15",
-    expectedReturn: "—",
-    status: "Active",
-  },
-  {
-    id: "ALLOC-002",
-    asset: "MacBook Pro 16",
-    assetId: "AST-005",
-    assignedTo: "Amit Patel",
-    assignedBy: "Rajesh Agarwal",
-    department: "Design",
-    assignDate: "2023-03-12",
-    expectedReturn: "—",
-    status: "Active",
-  },
-  {
-    id: "ALLOC-003",
-    asset: "Canon EOS R5",
-    assetId: "AST-012",
-    assignedTo: "Photography Team",
-    assignedBy: "Meera Iyer",
-    department: "Marketing",
-    assignDate: "2024-01-08",
-    expectedReturn: "2024-01-15",
-    status: "Temporary",
-  },
-];
+interface Allocation {
+  id: string;
+  assetId: string;
+  assetName: string;
+  assignedTo: string;
+  assignedBy: string;
+  department: string;
+  assignDate: string;
+  expectedReturn: string | null;
+  status: string;
+  allocationType: string;
+  location: string;
+  purpose: string;
+}
+
+interface AllocationStats {
+  totalAllocations: number;
+  active: number;
+  temporary: number;
+}
 
 export default function Allocation() {
   const navigate = useNavigate();
-  
-  const stats = [
-    {
-      title: "Total Allocations",
-      value: "1,185",
-      icon: Users,
-      color: "text-primary",
-      bgColor: "bg-primary/10",
-    },
-    {
-      title: "Active",
-      value: "1,142",
-      icon: CheckCircle,
-      color: "text-success",
-      bgColor: "bg-success/10",
-    },
-    {
-      title: "Temporary",
-      value: "43",
-      icon: ArrowRightLeft,
-      color: "text-warning",
-      bgColor: "bg-warning/10",
-    },
-  ];
+  const { toast } = useToast();
+  const [allocations, setAllocations] = useState<Allocation[]>([]);
+  const [stats, setStats] = useState<AllocationStats>({
+    totalAllocations: 0,
+    active: 0,
+    temporary: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchAllocations();
+  }, []);
+
+  const fetchAllocations = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:3000/allocation/assignments', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAllocations(data);
+
+        // Calculate stats
+        const totalAllocations = data.length;
+        const active = data.filter((a: Allocation) => a.status === 'Active').length;
+        const temporary = data.filter((a: Allocation) => a.allocationType === 'temporary').length;
+
+        setStats({
+          totalAllocations,
+          active,
+          temporary,
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to fetch allocations",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Network error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCheckIn = async (allocationId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:3000/allocation/assignments/${allocationId}/checkin`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Asset checked in successfully",
+        });
+        fetchAllocations(); // Refresh data
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to check in asset",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Network error occurred",
+        variant: "destructive",
+      });
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -89,6 +136,39 @@ export default function Allocation() {
     }
   };
 
+  const statsCards = [
+    {
+      title: "Total Allocations",
+      value: stats.totalAllocations.toString(),
+      icon: Users,
+      color: "text-primary",
+      bgColor: "bg-primary/10",
+    },
+    {
+      title: "Active",
+      value: stats.active.toString(),
+      icon: CheckCircle,
+      color: "text-success",
+      bgColor: "bg-success/10",
+    },
+    {
+      title: "Temporary",
+      value: stats.temporary.toString(),
+      icon: ArrowRightLeft,
+      color: "text-warning",
+      bgColor: "bg-warning/10",
+    },
+  ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <RefreshCw className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Loading allocations...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -99,6 +179,10 @@ export default function Allocation() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={fetchAllocations}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
           <Button variant="outline" onClick={() => navigate("/allocation/transfer")}>
             <ArrowRightLeft className="mr-2 h-4 w-4" />
             Transfer Asset
@@ -111,7 +195,7 @@ export default function Allocation() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        {stats.map((stat) => (
+        {statsCards.map((stat) => (
           <Card key={stat.title} className="transition-smooth hover:shadow-md">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -155,7 +239,7 @@ export default function Allocation() {
                       <TableCell className="font-medium">{allocation.id}</TableCell>
                       <TableCell>
                         <div>
-                          <div className="font-medium">{allocation.asset}</div>
+                          <div className="font-medium">{allocation.assetName}</div>
                           <div className="text-xs text-muted-foreground">
                             {allocation.assetId}
                           </div>
@@ -164,8 +248,10 @@ export default function Allocation() {
                       <TableCell>{allocation.assignedTo}</TableCell>
                       <TableCell>{allocation.assignedBy}</TableCell>
                       <TableCell>{allocation.department}</TableCell>
-                      <TableCell>{allocation.assignDate}</TableCell>
-                      <TableCell>{allocation.expectedReturn}</TableCell>
+                      <TableCell>{new Date(allocation.assignDate).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        {allocation.expectedReturn ? new Date(allocation.expectedReturn).toLocaleDateString() : "—"}
+                      </TableCell>
                       <TableCell>
                         <Badge
                           variant="outline"
@@ -176,15 +262,24 @@ export default function Allocation() {
                       </TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-2">
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             onClick={() => navigate(`/allocation/${allocation.id}`)}
                           >
                             View
                           </Button>
-                          <Button 
+                          {allocation.allocationType === "temporary" && allocation.status === "Active" && (
+                            <Button
+                              size="sm"
+                              onClick={() => handleCheckIn(allocation.id)}
+                            >
+                              Check In
+                            </Button>
+                          )}
+                          <Button
                             size="sm"
+                            variant="outline"
                             onClick={() => navigate("/allocation/transfer")}
                           >
                             Transfer
@@ -210,82 +305,120 @@ export default function Allocation() {
               <p className="text-sm text-muted-foreground">
                 Manage temporary asset assignments with check-in and check-out functionality.
               </p>
-              <div className="rounded-lg border p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Camera Equipment</p>
-                    <p className="text-sm text-muted-foreground">Canon EOS R5 + Lenses</p>
+              {allocations
+                .filter(a => a.allocationType === "temporary" && a.status === "Active")
+                .slice(0, 3)
+                .map((allocation) => (
+                  <div key={allocation.id} className="rounded-lg border p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">{allocation.assetName}</p>
+                        <p className="text-sm text-muted-foreground">Assigned to {allocation.assignedTo}</p>
+                      </div>
+                      <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20">
+                        Checked Out
+                      </Badge>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => handleCheckIn(allocation.id)}
+                      >
+                        Check In
+                      </Button>
+                      <Button
+                        className="flex-1"
+                        onClick={() => navigate(`/allocation/${allocation.id}`)}
+                      >
+                        View Details
+                      </Button>
+                    </div>
                   </div>
-                  <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20">
-                    Checked Out
-                  </Badge>
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    className="flex-1"
-                    onClick={() => {
-                      toast.success("Asset checked in successfully!");
-                    }}
-                  >
-                    Check In
-                  </Button>
-                  <Button 
-                    className="flex-1"
-                    onClick={() => navigate("/allocation/ALLOC-003")}
-                  >
-                    View Details
-                  </Button>
-                </div>
-              </div>
+                ))}
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Transfer Log</CardTitle>
+            <CardTitle>Asset Utilization</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {[
-                {
-                  asset: "Dell Latitude 5520",
-                  from: "Mumbai Office",
-                  to: "Pune Office",
-                  date: "2024-01-08",
-                  status: "Pending",
-                },
-                {
-                  asset: "HP LaserJet Pro",
-                  from: "Delhi Office",
-                  to: "Bangalore Office",
-                  date: "2024-01-05",
-                  status: "Completed",
-                },
-              ].map((transfer, index) => (
-                <div key={index} className="rounded-lg border p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <p className="font-medium">{transfer.asset}</p>
-                    <Badge
-                      variant="outline"
-                      className={
-                        transfer.status === "Completed"
-                          ? "bg-success/10 text-success border-success/20"
-                          : "bg-warning/10 text-warning border-warning/20"
-                      }
-                    >
-                      {transfer.status}
-                    </Badge>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={async () => {
+                  try {
+                    const token = localStorage.getItem('token');
+                    const response = await fetch('http://localhost:3000/allocation/check-utilization', {
+                      headers: {
+                        'Authorization': `Bearer ${token}`,
+                      },
+                    });
+
+                    if (response.ok) {
+                      const data = await response.json();
+                      toast({
+                        title: "Utilization Report",
+                        description: `Total assets: ${data.totalAssets}, Allocated: ${data.allocatedAssets}, Available: ${data.availableAssets}`,
+                      });
+                    }
+                  } catch (error) {
+                    toast({
+                      title: "Error",
+                      description: "Failed to fetch utilization data",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+              >
+                Check Asset Utilization
+              </Button>
+              <div className="space-y-4">
+                {[
+                  {
+                    asset: "Dell Latitude 5520",
+                    utilization: 85,
+                    status: "High",
+                  },
+                  {
+                    asset: "HP LaserJet Pro",
+                    utilization: 45,
+                    status: "Medium",
+                  },
+                  {
+                    asset: "MacBook Pro 16",
+                    utilization: 92,
+                    status: "High",
+                  },
+                ].map((item, index) => (
+                  <div key={index} className="rounded-lg border p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <p className="font-medium">{item.asset}</p>
+                      <Badge
+                        variant="outline"
+                        className={
+                          item.status === "High"
+                            ? "bg-success/10 text-success border-success/20"
+                            : "bg-warning/10 text-warning border-warning/20"
+                        }
+                      >
+                        {item.utilization}% utilized
+                      </Badge>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full ${
+                          item.status === "High" ? "bg-success" : "bg-warning"
+                        }`}
+                        style={{ width: `${item.utilization}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span>{transfer.from}</span>
-                    <ArrowRightLeft className="h-4 w-4" />
-                    <span>{transfer.to}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">{transfer.date}</p>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </CardContent>
         </Card>

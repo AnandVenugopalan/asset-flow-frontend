@@ -9,14 +9,134 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, ShoppingCart, Clock, CheckCircle, TrendingUp } from "lucide-react";
+import { Plus, ShoppingCart, Clock, CheckCircle, TrendingUp, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
-import { procurementRequests } from "@/lib/mockData";
+import { useToast } from "@/hooks/use-toast";
+import { useState, useEffect } from "react";
+
+interface ProcurementRequest {
+  id: string;
+  title: string;
+  requestedBy: string;
+  department: string;
+  status: string;
+  priority: string;
+  requestDate: string;
+  estimatedCost: number;
+  vendor: string;
+  description: string;
+  category: string;
+  quantity: number;
+  requiredBy: string;
+}
+
+interface Vendor {
+  id: string;
+  name: string;
+  contactPerson: string;
+  email: string;
+  phone: string;
+  activeContracts: number;
+}
+
+interface ProcurementStats {
+  totalRequests: number;
+  pendingApproval: number;
+  approved: number;
+  totalBudget: number;
+}
 
 export default function Procurement() {
   const navigate = useNavigate();
-  
+  const { toast } = useToast();
+  const [requests, setRequests] = useState<ProcurementRequest[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [stats, setStats] = useState<ProcurementStats>({
+    totalRequests: 0,
+    pendingApproval: 0,
+    approved: 0,
+    totalBudget: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchProcurementData();
+  }, []);
+
+  const fetchProcurementData = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'Authorization': `Bearer ${token}` };
+
+      // Fetch procurement requests
+      const requestsResponse = await fetch('http://localhost:3000/procurement/requests', { headers });
+      if (requestsResponse.ok) {
+        const requestsData = await requestsResponse.json();
+        setRequests(requestsData);
+      }
+
+      // Fetch vendors
+      const vendorsResponse = await fetch('http://localhost:3000/procurement/vendors', { headers });
+      if (vendorsResponse.ok) {
+        const vendorsData = await vendorsResponse.json();
+        setVendors(vendorsData);
+      }
+
+      // Calculate stats from requests data
+      const totalRequests = requests.length;
+      const pendingApproval = requests.filter(r => r.status === 'Pending Approval').length;
+      const approved = requests.filter(r => r.status === 'Approved').length;
+      const totalBudget = requests.reduce((sum, r) => sum + r.estimatedCost, 0);
+
+      setStats({
+        totalRequests,
+        pendingApproval,
+        approved,
+        totalBudget,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch procurement data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApproveRequest = async (requestId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:3000/procurement/requests/${requestId}/approve`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Purchase request approved successfully",
+        });
+        fetchProcurementData(); // Refresh data
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to approve request",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Network error occurred",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Approved":
@@ -35,6 +155,7 @@ export default function Procurement() {
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case "High":
+      case "Urgent":
         return "bg-destructive/10 text-destructive border-destructive/20";
       case "Medium":
         return "bg-warning/10 text-warning border-warning/20";
@@ -45,36 +166,45 @@ export default function Procurement() {
     }
   };
 
-  const stats = [
+  const statsCards = [
     {
       title: "Total Requests",
-      value: "87",
+      value: stats.totalRequests.toString(),
       icon: ShoppingCart,
       color: "text-primary",
       bgColor: "bg-primary/10",
     },
     {
       title: "Pending Approval",
-      value: "15",
+      value: stats.pendingApproval.toString(),
       icon: Clock,
       color: "text-warning",
       bgColor: "bg-warning/10",
     },
     {
       title: "Approved",
-      value: "52",
+      value: stats.approved.toString(),
       icon: CheckCircle,
       color: "text-success",
       bgColor: "bg-success/10",
     },
     {
       title: "Total Budget",
-      value: "₹45.2L",
+      value: `₹${(stats.totalBudget / 100000).toFixed(1)}L`,
       icon: TrendingUp,
       color: "text-primary",
       bgColor: "bg-primary/10",
     },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <RefreshCw className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Loading procurement data...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -85,14 +215,20 @@ export default function Procurement() {
             Manage purchase requests and vendor information
           </p>
         </div>
-        <Button className="gradient-primary" onClick={() => navigate("/procurement/add")}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Purchase Request
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={fetchProcurementData}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
+          <Button className="gradient-primary" onClick={() => navigate("/procurement/add")}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Purchase Request
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
+        {statsCards.map((stat) => (
           <Card key={stat.title} className="transition-smooth hover:shadow-md">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -132,7 +268,7 @@ export default function Procurement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {procurementRequests.map((request) => (
+                  {requests.map((request) => (
                     <TableRow key={request.id} className="hover:bg-muted/50">
                       <TableCell className="font-medium">{request.id}</TableCell>
                       <TableCell className="font-medium">{request.title}</TableCell>
@@ -154,26 +290,24 @@ export default function Procurement() {
                           {request.priority}
                         </Badge>
                       </TableCell>
-                      <TableCell>{request.requestDate}</TableCell>
+                      <TableCell>{new Date(request.requestDate).toLocaleDateString()}</TableCell>
                       <TableCell className="font-medium">
-                        {request.estimatedCost}
+                        ₹{request.estimatedCost.toLocaleString()}
                       </TableCell>
-                      <TableCell>{request.vendor}</TableCell>
+                      <TableCell>{request.vendor || 'Not assigned'}</TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-2">
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             onClick={() => navigate(`/procurement/${request.id}`)}
                           >
                             View
                           </Button>
                           {request.status === "Pending Approval" && (
-                            <Button 
+                            <Button
                               size="sm"
-                              onClick={() => {
-                                toast.success("Purchase request approved successfully!");
-                              }}
+                              onClick={() => handleApproveRequest(request.id)}
                             >
                               Approve
                             </Button>
@@ -196,30 +330,33 @@ export default function Procurement() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {["Dell India", "HP Authorized Service", "Featherlite", "Cisco Systems"].map(
-                (vendor, index) => (
-                  <div
-                    key={vendor}
-                    className="flex items-center justify-between rounded-lg border p-4"
-                  >
+              {vendors.slice(0, 4).map((vendor) => (
+                <div
+                  key={vendor.id}
+                  className="flex items-center justify-between rounded-lg border p-4"
+                >
                   <div>
-                    <p className="font-medium">{vendor}</p>
+                    <p className="font-medium">{vendor.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      {index + 5} active contracts
+                      {vendor.activeContracts} active contracts
                     </p>
                   </div>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
-                    onClick={() => {
-                      toast.success(`Opening ${vendor} details...`);
-                    }}
+                    onClick={() => navigate(`/vendors/${vendor.id}`)}
                   >
                     View Details
                   </Button>
-                  </div>
-                )
-              )}
+                </div>
+              ))}
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => navigate('/vendors')}
+              >
+                View All Vendors
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -231,11 +368,11 @@ export default function Procurement() {
           <CardContent>
             <div className="space-y-4">
               {[
-                { stage: "Request Initiated", count: 15, color: "bg-warning" },
-                { stage: "Manager Approval", count: 8, color: "bg-primary" },
-                { stage: "Finance Approval", count: 5, color: "bg-accent" },
-                { stage: "Vendor Selection", count: 12, color: "bg-success" },
-                { stage: "GRN Pending", count: 6, color: "bg-destructive" },
+                { stage: "Request Initiated", count: requests.filter(r => r.status === 'Pending Approval').length, color: "bg-warning" },
+                { stage: "Manager Approval", count: requests.filter(r => r.status === 'Approved').length, color: "bg-primary" },
+                { stage: "Finance Approval", count: Math.floor(requests.filter(r => r.status === 'Approved').length * 0.8), color: "bg-accent" },
+                { stage: "Vendor Selection", count: requests.filter(r => r.status === 'In Procurement').length, color: "bg-success" },
+                { stage: "GRN Pending", count: Math.floor(requests.filter(r => r.status === 'In Procurement').length * 0.5), color: "bg-destructive" },
               ].map((workflow) => (
                 <div
                   key={workflow.stage}

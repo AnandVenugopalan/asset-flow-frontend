@@ -13,22 +13,94 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowLeft, Save, Upload } from "lucide-react";
-import { toast } from "sonner";
-import { employees } from "@/lib/mockData";
+import { useToast } from "@/hooks/use-toast";
+
+interface ProcurementRequestForm {
+  title: string;
+  category: string;
+  priority: string;
+  quantity: number;
+  department: string;
+  description: string;
+  justification: string;
+  estimatedCost: number;
+  budgetCode: string;
+  preferredVendor: string;
+  alternateVendor: string;
+  requiredBy: string;
+  requestedBy: string;
+  managerApprover: string;
+  additionalNotes: string;
+}
 
 export default function AddProcurement() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState<ProcurementRequestForm>({
+    title: '',
+    category: '',
+    priority: '',
+    quantity: 1,
+    department: '',
+    description: '',
+    justification: '',
+    estimatedCost: 0,
+    budgetCode: '',
+    preferredVendor: '',
+    alternateVendor: '',
+    requiredBy: '',
+    requestedBy: '',
+    managerApprover: '',
+    additionalNotes: '',
+  });
+
+  const handleInputChange = (field: keyof ProcurementRequestForm, value: string | number) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    setTimeout(() => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:3000/procurement/requests', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ...formData,
+          requestDate: new Date().toISOString(),
+          status: 'Pending Approval',
+        }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Purchase request submitted successfully",
+        });
+        navigate("/procurement");
+      } else {
+        const errorData = await response.json();
+        toast({
+          title: "Error",
+          description: errorData.message || "Failed to submit purchase request",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Network error occurred",
+        variant: "destructive",
+      });
+    } finally {
       setIsSubmitting(false);
-      toast.success("Purchase request submitted successfully!");
-      navigate("/procurement");
-    }, 1000);
+    }
   };
 
   return (
@@ -53,37 +125,43 @@ export default function AddProcurement() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="title">Request Title *</Label>
-                  <Input id="title" placeholder="e.g., 10 Dell Laptops for Engineering Team" required />
+                  <Input
+                    id="title"
+                    placeholder="e.g., 10 Dell Laptops for Engineering Team"
+                    value={formData.title}
+                    onChange={(e) => handleInputChange('title', e.target.value)}
+                    required
+                  />
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="category">Category *</Label>
-                    <Select required>
+                    <Select value={formData.category} onValueChange={(value) => handleInputChange('category', value)} required>
                       <SelectTrigger>
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="it">IT Equipment</SelectItem>
-                        <SelectItem value="furniture">Office Furniture</SelectItem>
-                        <SelectItem value="transport">Transport</SelectItem>
-                        <SelectItem value="infrastructure">IT Infrastructure</SelectItem>
-                        <SelectItem value="supplies">Office Supplies</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
+                        <SelectItem value="IT Equipment">IT Equipment</SelectItem>
+                        <SelectItem value="Office Furniture">Office Furniture</SelectItem>
+                        <SelectItem value="Transport">Transport</SelectItem>
+                        <SelectItem value="IT Infrastructure">IT Infrastructure</SelectItem>
+                        <SelectItem value="Office Supplies">Office Supplies</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="priority">Priority *</Label>
-                    <Select required>
+                    <Select value={formData.priority} onValueChange={(value) => handleInputChange('priority', value)} required>
                       <SelectTrigger>
                         <SelectValue placeholder="Select priority" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="low">Low</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
-                        <SelectItem value="urgent">Urgent</SelectItem>
+                        <SelectItem value="Low">Low</SelectItem>
+                        <SelectItem value="Medium">Medium</SelectItem>
+                        <SelectItem value="High">High</SelectItem>
+                        <SelectItem value="Urgent">Urgent</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -92,23 +170,30 @@ export default function AddProcurement() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="quantity">Quantity *</Label>
-                    <Input id="quantity" type="number" placeholder="10" required />
+                    <Input
+                      id="quantity"
+                      type="number"
+                      placeholder="10"
+                      value={formData.quantity}
+                      onChange={(e) => handleInputChange('quantity', parseInt(e.target.value) || 1)}
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="department">Department *</Label>
-                    <Select required>
+                    <Select value={formData.department} onValueChange={(value) => handleInputChange('department', value)} required>
                       <SelectTrigger>
                         <SelectValue placeholder="Select department" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="engineering">Engineering</SelectItem>
-                        <SelectItem value="design">Design</SelectItem>
-                        <SelectItem value="sales">Sales</SelectItem>
-                        <SelectItem value="marketing">Marketing</SelectItem>
-                        <SelectItem value="hr">Human Resources</SelectItem>
-                        <SelectItem value="finance">Finance</SelectItem>
-                        <SelectItem value="it">IT</SelectItem>
-                        <SelectItem value="operations">Operations</SelectItem>
+                        <SelectItem value="Engineering">Engineering</SelectItem>
+                        <SelectItem value="Design">Design</SelectItem>
+                        <SelectItem value="Sales">Sales</SelectItem>
+                        <SelectItem value="Marketing">Marketing</SelectItem>
+                        <SelectItem value="Human Resources">Human Resources</SelectItem>
+                        <SelectItem value="Finance">Finance</SelectItem>
+                        <SelectItem value="IT">IT</SelectItem>
+                        <SelectItem value="Operations">Operations</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -120,6 +205,8 @@ export default function AddProcurement() {
                     id="description"
                     placeholder="Detailed description of the items needed, specifications, and any special requirements..."
                     rows={4}
+                    value={formData.description}
+                    onChange={(e) => handleInputChange('description', e.target.value)}
                     required
                   />
                 </div>
@@ -130,6 +217,8 @@ export default function AddProcurement() {
                     id="justification"
                     placeholder="Explain why this purchase is necessary and how it will benefit the organization..."
                     rows={3}
+                    value={formData.justification}
+                    onChange={(e) => handleInputChange('justification', e.target.value)}
                     required
                   />
                 </div>
@@ -144,44 +233,67 @@ export default function AddProcurement() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="estimatedCost">Estimated Cost (₹) *</Label>
-                    <Input id="estimatedCost" type="number" placeholder="750000" required />
+                    <Input
+                      id="estimatedCost"
+                      type="number"
+                      placeholder="750000"
+                      value={formData.estimatedCost}
+                      onChange={(e) => handleInputChange('estimatedCost', parseFloat(e.target.value) || 0)}
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="budgetCode">Budget Code</Label>
-                    <Input id="budgetCode" placeholder="DEPT-2024-IT-001" />
+                    <Input
+                      id="budgetCode"
+                      placeholder="DEPT-2024-IT-001"
+                      value={formData.budgetCode}
+                      onChange={(e) => handleInputChange('budgetCode', e.target.value)}
+                    />
                   </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="preferredVendor">Preferred Vendor</Label>
-                    <Input id="preferredVendor" placeholder="Dell India" />
+                    <Input
+                      id="preferredVendor"
+                      placeholder="Dell India"
+                      value={formData.preferredVendor}
+                      onChange={(e) => handleInputChange('preferredVendor', e.target.value)}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="alternateVendor">Alternate Vendor</Label>
-                    <Input id="alternateVendor" placeholder="HP India" />
+                    <Input
+                      id="alternateVendor"
+                      placeholder="HP India"
+                      value={formData.alternateVendor}
+                      onChange={(e) => handleInputChange('alternateVendor', e.target.value)}
+                    />
                   </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="requiredBy">Required By Date *</Label>
-                    <Input id="requiredBy" type="date" required />
+                    <Input
+                      id="requiredBy"
+                      type="date"
+                      value={formData.requiredBy}
+                      onChange={(e) => handleInputChange('requiredBy', e.target.value)}
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="requestedBy">Requested By *</Label>
-                    <Select required>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select requester" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {employees.map((employee) => (
-                          <SelectItem key={employee} value={employee.toLowerCase()}>
-                            {employee}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Input
+                      id="requestedBy"
+                      placeholder="John Doe"
+                      value={formData.requestedBy}
+                      onChange={(e) => handleInputChange('requestedBy', e.target.value)}
+                      required
+                    />
                   </div>
                 </div>
               </CardContent>
@@ -194,18 +306,12 @@ export default function AddProcurement() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="managerApprover">Manager Approval Required</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select manager" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {employees.slice(0, 5).map((employee) => (
-                        <SelectItem key={employee} value={employee.toLowerCase()}>
-                          {employee}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    id="managerApprover"
+                    placeholder="Manager Name"
+                    value={formData.managerApprover}
+                    onChange={(e) => handleInputChange('managerApprover', e.target.value)}
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -214,6 +320,8 @@ export default function AddProcurement() {
                     id="additionalNotes"
                     placeholder="Any additional information or special instructions..."
                     rows={3}
+                    value={formData.additionalNotes}
+                    onChange={(e) => handleInputChange('additionalNotes', e.target.value)}
                   />
                 </div>
               </CardContent>
